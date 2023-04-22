@@ -2,6 +2,7 @@ import logging
 from telegram.ext import Application, MessageHandler, filters, CommandHandler
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove
 import random
+import aiohttp
 
 # from telegram.ext import ApplicationBuilder
 BOT_TOKEN = '6188292983:AAEiOG7lgCOOUT85Sam83Zq2q_55U1N2ZV0'
@@ -48,11 +49,11 @@ async def dialog(update, context):
            'как прошел ваш день', 'как вы себя чувствуете', 'как твои дела', 'как ваши дела', 'как делишки', 'а у вас',
            'а как вы поживаете', 'а вы', 'а у вас как']
 
-    mates = ['сука', 'нахуй', 'блять', 'пиздец', 'пизда', 'ебать', 'заебись']
+    mates = ['сука', 'нахуй', 'блять', 'пиздец', 'пизда', 'ебать', 'заебись', 'пидор', 'хуй', 'пидорас']
     mate_flag = False
 
-    conditions_good = ['хорошо', 'отлично', 'замечательно', 'великолепно',
-                       'превосходно', 'фантастически', 'сказочно', 'на 5 с плюсом', 'неплохо']
+    conditions_good = ['хорошо', 'отлично', 'замечательно', 'великолепно', 'пойдет', 'словно',
+                       'превосходно', 'фантастически', 'сказочно', 'на 5 с плюсом', 'неплохо', 'супер', 'круто']
 
     conditions_bad = ['плох', 'ужасн', 'грустн', 'печальн', 'одинок', 'противн', 'мерзк', 'отвратительн',
                       'угнетающе', 'гнетуще', 'не очень', 'разочарованн', 'безысходн' 'паршив']
@@ -142,9 +143,25 @@ async def about(update, context):
 
 
 async def posts(update, context):
-    user = update.effective_user
-    await update.message.reply_text(f"")
+    geocoder_uri = "http://127.0.0.1:8080/api/blog"
+    response = await get_response(geocoder_uri, params={
+        "apikey": "Your Api key",
+        "format": "json",
+        "geocode": update.message.text
+    })
 
+    if not response:
+        await update.message.reply_text('Ошибка выполнения запроса!')
+    else:
+        for i in response:
+            await update.message.reply_text(i)
+
+
+async def get_response(url, params):
+    logger.info(f"getting {url}")
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, params=params) as resp:
+            return await resp.json()
 
 if __name__ == '__main__':
     main()
