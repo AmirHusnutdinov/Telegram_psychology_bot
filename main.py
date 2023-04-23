@@ -7,6 +7,27 @@ import aiohttp
 # from telegram.ext import ApplicationBuilder
 BOT_TOKEN = '6188292983:AAEiOG7lgCOOUT85Sam83Zq2q_55U1N2ZV0'
 
+conditions_good = ['хорошо', 'отлично', 'замечательно', 'великолепно', 'пойдет', 'словно',
+                   'превосходно', 'фантастически', 'сказочно', 'на 5 с плюсом', 'неплохо', 'супер', 'круто']
+
+conditions_bad = ['плох', 'ужасн', 'грустн', 'печальн', 'одинок', 'противн', 'мерзк', 'отвратительн',
+                  'угнетающе', 'гнетуще', 'не очень', 'разочарованн', 'безысходн' 'паршив']
+
+alfabet = list('abcdefghijklmnopqrstuvwxyzабвгдеёжзийклмнопрстуфхцчшщъыьэюя ')
+
+hello = ['привет', 'здравствуй', 'здравствуйте', 'приветствую',
+         'доброго времени суток', 'бонжур', 'намасте', 'hello', 'hi', 'доброе утро', 'добрый день',
+         'добрый вечер', 'доброй ночи', 'утречко']
+
+answer_for_hello = ['Привет', 'Здравствуй', 'Здравствуйте', 'Приветствую',
+                    'Доброго времени суток', 'Бонжур', 'Намасте', 'Рад вас видеть',
+                    'Хай']
+
+hau = ['как дела', 'как жизнь', 'как настроение', 'как настрой',
+       'как поживаете', 'как вы себя чувствуете', 'как прошел ваш день', 'как вы себя чувствуете']
+
+mates = ['сука', 'нахуй', 'блять', 'пиздец', 'пизда', 'ебать', 'заебись', 'пидор', 'хуй', 'пидорас']
+
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG
 )
@@ -24,52 +45,104 @@ def main():
     application.add_handler(CommandHandler("site", site))
     application.add_handler(CommandHandler("about", about))
     application.add_handler(CommandHandler("posts", posts))
-    conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("answers", answers)],
+    application.add_handler(CommandHandler("events", events))
+
+    conv_handler1 = ConversationHandler(
+        entry_points=[CommandHandler("start", start)],
         states={
-            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, first_response)],
-            2: [MessageHandler(filters.TEXT & ~filters.COMMAND, second_response)],
-            3: [MessageHandler(filters.TEXT & ~filters.COMMAND, third_response)],
-            4: [MessageHandler(filters.TEXT & ~filters.COMMAND, fourth_response)],
-            5: [MessageHandler(filters.TEXT & ~filters.COMMAND, fifth_response)]
+            '1_start': [MessageHandler(filters.TEXT & ~filters.COMMAND, first_response_start)],
+            '2_start': [MessageHandler(filters.TEXT & ~filters.COMMAND, second_response_start)],
+            '3_start': [MessageHandler(filters.TEXT & ~filters.COMMAND, third_response_start)]
         },
         fallbacks=[CommandHandler("stop", stop)]
     )
 
-    application.add_handler(conv_handler)
+    conv_handler2 = ConversationHandler(
+        entry_points=[CommandHandler("answers", answers)],
+        states={
+            '1_answer': [MessageHandler(filters.TEXT & ~filters.COMMAND, first_response_answer)],
+            '2_answer': [MessageHandler(filters.TEXT & ~filters.COMMAND, second_response_answer)],
+            '3_answer': [MessageHandler(filters.TEXT & ~filters.COMMAND, third_response_answer)],
+            '4_answer': [MessageHandler(filters.TEXT & ~filters.COMMAND, fourth_response_answer)]
+        },
+        fallbacks=[CommandHandler("stop1", stop1)]
+    )
+    application.add_handler(conv_handler1)
+    application.add_handler(conv_handler2)
     application.add_handler(MessageHandler(filters.TEXT, dialog))
     application.run_polling()
 
 
+async def events(update, _):
+    event_api_url = "http://127.0.0.1:8080/api/blog"
+    response = await get_response(event_api_url, params={
+        "apikey": "Your Api key",
+        "format": "json"
+    })
+
+    if not response:
+        await update.message.reply_text('Ошибка выполнения запроса!')
+    else:
+        for i in response:
+            await update.message.reply_text(i)
+
+
 async def dialog(update, _):
     phrase = []
-    alfabet = list('abcdefghijklmnopqrstuvwxyzабвгдеёжзийклмнопрстуфхцчшщъыьэюя ')
 
     for char in list(update.message.text.lower()):
         if char.lower() in alfabet:
             phrase.append(char)
     phrase = ''.join(phrase)
 
-    hello = ['привет', 'здравствуй', 'здравствуйте', 'приветствую',
-             'доброго времени суток', 'бонжур', 'намасте', 'hello', 'hi', 'доброе утро', 'добрый день',
-             'добрый вечер', 'доброй ночи', 'утречко']
+    for word_hello in hello:
+        if word_hello in phrase:
+            await update.message.reply_text(f'{answer_for_hello[random.randrange(0, 11)]}')
+            break
 
-    answer_for_hello = ['Привет', 'Здравствуй', 'Здравствуйте', 'Приветствую', 'Доброго времени суток', 'Бонжур',
-                        'Намасте', 'Пока:) Извините я шучу, рад вас видеть', 'Давненько не виделись', 'Рад вас видеть',
-                        'Хай']
 
-    hau = ['как дела', 'как жизнь', 'как настроение', 'как настрой', 'как поживаете', 'как вы себя чувствуете',
-           'как прошел ваш день', 'как вы себя чувствуете', 'как твои дела', 'как ваши дела', 'как делишки', 'а у вас',
-           'а как вы поживаете', 'а вы', 'а у вас как']
+async def start(update, _):
+    reply_keyboard = [['/posts', '/events', '/about', '/answers'],
+                      ['/site', '/start', '/close', '/stop']]
 
-    mates = ['сука', 'нахуй', 'блять', 'пиздец', 'пизда', 'ебать', 'заебись', 'пидор', 'хуй', 'пидорас']
+    markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=False)
+
+    user = update.effective_user
+
+    await update.message.reply_text(
+        f"{answer_for_hello[random.randrange(0, len(answer_for_hello))]}"
+        f" {user.mention_html().split('>')[1].split('<')[0]}👋.\nМеня зовут бот Эрнис,",
+        reply_markup=markup
+    )
+    await update.message.reply_text(f"Могу ли я называть вас {user.mention_html().split('>')[1].split('<')[0]}?\n"
+                                    f"Если хотите сменить имя напишите 'да'\nну а если все устраивает напишите 'нет'")
+    return '1_start'
+
+
+async def first_response_start(update, context):
+    print('cvghjklkjhgfdfghjkl')
+    if update.message.text == 'да':
+        await update.message.reply_text('Впишите имя которое хотите')
+        return '3_start'
+    elif update.message.text == 'нет':
+        context.user_data['name'] = update.message.text
+        await update.message.reply_text(f'Приятно познакомится {update.message.text}')
+        await update.message.reply_text(f' {hau[random.randrange(0, len(hau))]}?')
+        return '2_start'
+    else:
+        await update.message.reply_text('Еще разок "да" или "нет"')
+        return '1_start'
+
+
+async def second_response_start(update, _):
+    phrase = []
+
+    for char in list(update.message.text.lower()):
+        if char.lower() in alfabet:
+            phrase.append(char)
+    phrase = ''.join(phrase)
+
     mate_flag = False
-
-    conditions_good = ['хорошо', 'отлично', 'замечательно', 'великолепно', 'пойдет', 'словно',
-                       'превосходно', 'фантастически', 'сказочно', 'на 5 с плюсом', 'неплохо', 'супер', 'круто']
-
-    conditions_bad = ['плох', 'ужасн', 'грустн', 'печальн', 'одинок', 'противн', 'мерзк', 'отвратительн',
-                      'угнетающе', 'гнетуще', 'не очень', 'разочарованн', 'безысходн' 'паршив']
 
     for mate in mates:
         if mate in phrase:
@@ -78,18 +151,6 @@ async def dialog(update, _):
             break
 
     if not mate_flag:
-        for word_hello in hello:
-            if word_hello in phrase:
-                await update.message.reply_text(f'{answer_for_hello[random.randrange(0, 11)]},'
-                                                f' {hau[random.randrange(0, len(hau))]}?')
-                break
-
-        for word_hau in hau:
-            if word_hau in phrase:
-                await update.message.reply_text(f'{conditions_good[random.randrange(0, len(conditions_good))]},'
-                                                f' спасибо')
-                break
-
         bad_flag = False
         for condition in conditions_bad:
             if condition in phrase:
@@ -103,28 +164,15 @@ async def dialog(update, _):
                 if condition in phrase:
                     await update.message.reply_text('Я очень за вас рад!')
                     break
+        await update.message.reply_text('Хотите узнать что я могу?\nЕсли да то тебе сюда /help')
+        return ConversationHandler.END
 
 
-async def start(update, _):
-    reply_keyboard = [['/posts', '/events', '/about', '/answers'],
-                      ['/site', '/start', '/close', '/stop']]
-
-    markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=False)
-
-    user = update.effective_user
-    answer_for_hello = ['Привет', 'Здравствуй', 'Здравствуйте', 'Приветствую',
-                        'Доброго времени суток', 'Бонжур', 'Намасте', 'Рад вас видеть',
-                        'Хай']
-
-    hau = ['как дела', 'как жизнь', 'как настроение', 'как настрой',
-           'как поживаете', 'как вы себя чувствуете', 'как прошел ваш день', 'как вы себя чувствуете']
-
-    await update.message.reply_text(
-        f"{answer_for_hello[random.randrange(0, len(answer_for_hello))]}"
-        f" {user.mention_html().split('>')[1].split('<')[0]}👋.\nМеня зовут бот Эрнис,"
-        f" {hau[random.randrange(0, len(hau))]}?",
-        reply_markup=markup
-    )
+async def third_response_start(update, context):
+    context.user_data['name'] = update.message.text
+    await update.message.reply_text(f'Приятно познакомится {update.message.text}')
+    await update.message.reply_text(f' {hau[random.randrange(0, len(hau))]}?')
+    return '2_start'
 
 
 async def help_(update, _):
@@ -170,29 +218,22 @@ async def posts(update, _):
             await update.message.reply_text(i)
 
 
-async def answers(update, _):
-    await update.message.reply_text('Итак чтобы задать вопрос пожалуйста напишите почту,\n'
+async def answers(update, context):
+    await update.message.reply_text(f'Итак {context.user_data["name"]} чтобы задать вопрос пожалуйста напишите почту,\n'
                                     'на которую вы хотите получить ответ.\n'
                                     'Если хотите прервать задавание вопроса впишите команду /stop')
-    return 1
+    return '1_answer'
 
 
-async def first_response(update, context):
+async def first_response_answer(update, context):
     context.user_data['email'] = update.message.text
-    await update.message.reply_text(
-        f"Отлично, почта у нас есть, хотелось бы узнать ваше имя")
-    return 2
+    await update.message.reply_text(f"Отлично {context.user_data['name']} внимательно слушаю твой вопрос")
+    return '2_answer'
 
 
-async def second_response(update, context):
-    context.user_data['name'] = update.message.text
-    await update.message.reply_text(f"Отлично {update.message.text} внимательно слушаю твой вопрос")
-    return 3
-
-
-async def third_response(update, context):
+async def second_response_answer(update, context):
     context.user_data['answer'] = update.message.text
-    reply_keyboard = [['да', 'имя', 'почта', 'сам вопрос']]
+    reply_keyboard = [['да', 'почта', 'сам вопрос']]
 
     markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
     await update.message.reply_text(f"Отлично {context.user_data['name']} теперь проверь все ли ты указал верно:\n"
@@ -201,10 +242,10 @@ async def third_response(update, context):
                                     f"Вопрос-- {context.user_data['answer']}\n\nЕсли все верно то напиши 'да' если нет,"
                                     f" то напиши в чем описался\n"
                                     f"Для удобства можешь воспользоваться кнопками", reply_markup=markup)
-    return 4
+    return '3_answer'
 
 
-async def fourth_response(update, context):
+async def third_response_answer(update, context):
     if update.message.text.lower() == 'да':
         answers_api_url = "http://127.0.0.1:8080/api/add_answer"
         email = context.user_data['email']
@@ -231,26 +272,19 @@ async def fourth_response(update, context):
                 await update.message.reply_text('Тут происходят пространственные аномалии')
                 return ConversationHandler.END
 
-    elif update.message.text.lower() == 'имя':
-        context.user_data['change'] = 'name'
-        await update.message.reply_text('Введите нужное имя')
-        return 5
-
     elif update.message.text.lower() == 'почта':
         context.user_data['change'] = 'email'
         await update.message.reply_text('Введите нужную почту')
-        return 5
+        return '4_answer'
 
     elif update.message.text.lower() == 'вопрос':
         context.user_data['change'] = 'answer'
         await update.message.reply_text('Введите свой вопрос')
-        return 5
+        return '4_answer'
 
 
-async def fifth_response(update, context):
-    if context.user_data['change'] == 'name':
-        context.user_data['name'] = update.message.text
-    elif context.user_data['change'] == 'email':
+async def fourth_response_answer(update, context):
+    if context.user_data['change'] == 'email':
         context.user_data['email'] = update.message.text
     elif context.user_data['change'] == 'answer':
         context.user_data['answer'] = update.message.text
@@ -281,15 +315,20 @@ async def fifth_response(update, context):
 
 
 async def stop(update, context):
-    await update.message.reply_text("Всего доброго!")
+    await update.message.reply_text(f"Хорошо, {context.user_data['name']}, диалог окончен")
     return ConversationHandler.END
 
+
+async def stop1(update, context):
+    await update.message.reply_text(f"Хорошо, {context.user_data['name']}, диалог окончен")
+    return ConversationHandler.END
 
 async def get_response(url, params):
     logger.info(f"getting {url}")
     async with aiohttp.ClientSession() as session:
         async with session.get(url, params=params) as resp:
             return await resp.json()
+
 
 if __name__ == '__main__':
     main()
