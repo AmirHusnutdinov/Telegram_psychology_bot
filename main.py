@@ -1,14 +1,16 @@
 import logging
 from telegram.ext import Application, MessageHandler, filters, CommandHandler, ConversationHandler
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove
+from data import db_session
+from data.metrics import Metrics
 import random
 import aiohttp
 
 # from telegram.ext import ApplicationBuilder
 BOT_TOKEN = '6188292983:AAEiOG7lgCOOUT85Sam83Zq2q_55U1N2ZV0'
 
-conditions_good = ['хорошо', 'отлично', 'замечательно', 'великолепно', 'пойдет', 'словно',
-                   'превосходно', 'фантастически', 'сказочно', 'на 5 с плюсом', 'неплохо', 'супер', 'круто']
+conditions_good = ['хорош', 'отличн', 'замечательн', 'великолепн', 'пойдет', 'славно',
+                   'превосходн', 'фантастически', 'сказочн', 'на 5 с плюсом', 'неплохо', 'супер', 'круто']
 
 conditions_bad = ['плох', 'ужасн', 'грустн', 'печальн', 'одинок', 'противн', 'мерзк', 'отвратительн',
                   'угнетающе', 'гнетуще', 'не очень', 'разочарованн', 'безысходн' 'паршив']
@@ -38,9 +40,9 @@ logger = logging.getLogger(__name__)
 def main():
     # proxy_url = "socks5://user:pass@host:port"
     # app = ApplicationBuilder().token(BOT_TOKEN).proxy_url(proxy_url).build()
+    db_session.global_init('db/metrix.db')
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("help", help_))
-    application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("close", close_keyboard))
     application.add_handler(CommandHandler("site", site))
     application.add_handler(CommandHandler("about", about))
@@ -65,7 +67,7 @@ def main():
             '3_answer': [MessageHandler(filters.TEXT & ~filters.COMMAND, third_response_answer)],
             '4_answer': [MessageHandler(filters.TEXT & ~filters.COMMAND, fourth_response_answer)]
         },
-        fallbacks=[CommandHandler("stop1", stop1)]
+        fallbacks=[CommandHandler("stop", stop)]
     )
     application.add_handler(conv_handler1)
     application.add_handler(conv_handler2)
@@ -74,6 +76,13 @@ def main():
 
 
 async def events(update, _):
+    db_sess = db_session.create_session()
+    metric = db_sess.query(Metrics).first()
+    info = metric.events
+    metric = db_sess.query(Metrics).filter(Metrics.id == 1).first()
+    metric.event = info + 1
+    db_sess.commit()
+
     event_api_url = "http://127.0.0.1:8080/api/blog"
     response = await get_response(event_api_url, params={
         "apikey": "Your Api key",
@@ -101,17 +110,24 @@ async def dialog(update, _):
             break
 
 
-async def start(update, _):
-    reply_keyboard = [['/posts', '/events', '/about', '/answers'],
-                      ['/site', '/start', '/close', '/stop']]
-
-    markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=False)
+async def start(update, context):
+    db_sess = db_session.create_session()
+    metric = db_sess.query(Metrics).first()
+    info = metric.start
+    metric = db_sess.query(Metrics).filter(Metrics.id == 1).first()
+    metric.start = info + 1
+    db_sess.commit()
 
     user = update.effective_user
+    context.user_data['change_len_name'] = False
+    context.user_data['name'] = user.mention_html().split('>')[1].split('<')[0]
+    reply_keyboard = [['да', 'нет']]
+
+    markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
 
     await update.message.reply_text(
         f"{answer_for_hello[random.randrange(0, len(answer_for_hello))]}"
-        f" {user.mention_html().split('>')[1].split('<')[0]}👋.\nМеня зовут бот Эрнис,",
+        f" {context.user_data['name']}👋.\nМеня зовут бот Ильяс.",
         reply_markup=markup
     )
     await update.message.reply_text(f"Могу ли я называть вас {user.mention_html().split('>')[1].split('<')[0]}?\n"
@@ -120,17 +136,24 @@ async def start(update, _):
 
 
 async def first_response_start(update, context):
-    print('cvghjklkjhgfdfghjkl')
-    if update.message.text == 'да':
-        await update.message.reply_text('Впишите имя которое хотите')
+    user = update.effective_user
+    reply_keyboard = [['/posts', '/events', '/about', '/answers'],
+                      ['/site', '/start', '/close', '/stop']]
+
+    markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=False)
+    if update.message.text == 'да' or context.user_data['change_len_name']:
+        await update.message.reply_text('Впишите имя которое хотите', reply_markup=markup)
+        context.user_data['change_len_name'] = False
         return '3_start'
+
     elif update.message.text == 'нет':
-        context.user_data['name'] = update.message.text
-        await update.message.reply_text(f'Приятно познакомится {update.message.text}')
-        await update.message.reply_text(f' {hau[random.randrange(0, len(hau))]}?')
+        context.user_data['name'] = user.mention_html().split('>')[1].split('<')[0]
+        await update.message.reply_text(f'Приятно познакомится {context.user_data["name"]}', reply_markup=markup)
+        await update.message.reply_text(f' {hau[random.randrange(0, len(hau))]}?', reply_markup=markup)
         return '2_start'
+
     else:
-        await update.message.reply_text('Еще разок "да" или "нет"')
+        await update.message.reply_text('Еще разок "да" или "нет"', reply_markup=markup)
         return '1_start'
 
 
@@ -164,11 +187,15 @@ async def second_response_start(update, _):
                 if condition in phrase:
                     await update.message.reply_text('Я очень за вас рад!')
                     break
-        await update.message.reply_text('Хотите узнать что я могу?\nЕсли да то тебе сюда /help')
+        await update.message.reply_text('Хотите узнать что я могу?\nЕсли да то вам сюда /help')
         return ConversationHandler.END
 
 
 async def third_response_start(update, context):
+    if len(update.message.text) >= 10:
+        await update.message.reply_text('Дружище твое имя слишком длинное,\nдавай что-нибудь умещающееся в 10 символов')
+        context.user_data['change_len_name'] = True
+        return '2_start'
     context.user_data['name'] = update.message.text
     await update.message.reply_text(f'Приятно познакомится {update.message.text}')
     await update.message.reply_text(f' {hau[random.randrange(0, len(hau))]}?')
@@ -176,11 +203,27 @@ async def third_response_start(update, context):
 
 
 async def help_(update, _):
+    db_sess = db_session.create_session()
+    metric = db_sess.query(Metrics).first()
+    info = metric.help
+    metric = db_sess.query(Metrics).filter(Metrics.id == 1).first()
+    metric.help = info + 1
+    db_sess.commit()
+
     await update.message.reply_text(
-        "Доступные команды:\n")
+        "Доступные команды:\n\n/start - Обновление бота\n/close - Закрытие клавиатуры\n/stop - Прерывание диалога\n\n"
+        "/answer - Задать вопрос эксперту\n/posts - Получить пост из блога\n/events - Получение ближайших событий\n"
+        "/about - Получение информации о нас\n/site - Получение ссылки наш на сайт\n\n/help - Получение всех команд")
 
 
 async def close_keyboard(update, _):
+    db_sess = db_session.create_session()
+    metric = db_sess.query(Metrics).first()
+    info = metric.close
+    metric = db_sess.query(Metrics).filter(Metrics.id == 1).first()
+    metric.close = info + 1
+    db_sess.commit()
+
     await update.message.reply_text(
         "Ok",
         reply_markup=ReplyKeyboardRemove()
@@ -188,6 +231,13 @@ async def close_keyboard(update, _):
 
 
 async def site(update, _):
+    db_sess = db_session.create_session()
+    metric = db_sess.query(Metrics).first()
+    info = metric.site
+    metric = db_sess.query(Metrics).filter(Metrics.id == 1).first()
+    metric.site = info + 1
+
+    db_sess.commit()
     user = update.effective_user
     await update.message.reply_text(f"{user.mention_html().split('>')[1].split('<')[0]} это наш сайт,\n"
                                     "переходи, там так много всего интересного и"
@@ -195,6 +245,13 @@ async def site(update, _):
 
 
 async def about(update, _):
+    db_sess = db_session.create_session()
+    metric = db_sess.query(Metrics).first()
+    info = metric.about
+    metric = db_sess.query(Metrics).filter(Metrics.id == 1).first()
+    metric.about = info + 1
+    db_sess.commit()
+
     await update.message.reply_text("Mindease\nМы предоставляет квалифицированную психологическую помощь"
                                     " подросткам,\nкоторые сталкиваются с жизненными трудностями.\n"
                                     " Проводим частные виртуальные консультации, а также групповые программы и"
@@ -205,6 +262,13 @@ async def about(update, _):
 
 
 async def posts(update, _):
+    db_sess = db_session.create_session()
+    metric = db_sess.query(Metrics).first()
+    info = metric.posts
+    metric = db_sess.query(Metrics).filter(Metrics.id == 1).first()
+    metric.posts = info + 1
+    db_sess.commit()
+
     blog_api_url = "http://127.0.0.1:8080/api/blog"
     response = await get_response(blog_api_url, params={
         "apikey": "Your Api key",
@@ -219,6 +283,13 @@ async def posts(update, _):
 
 
 async def answers(update, context):
+    db_sess = db_session.create_session()
+    metric = db_sess.query(Metrics).first()
+    info = metric.answers
+    metric = db_sess.query(Metrics).filter(Metrics.id == 1).first()
+    metric.answers = info + 1
+    db_sess.commit()
+
     await update.message.reply_text(f'Итак {context.user_data["name"]} чтобы задать вопрос пожалуйста напишите почту,\n'
                                     'на которую вы хотите получить ответ.\n'
                                     'Если хотите прервать задавание вопроса впишите команду /stop')
@@ -258,18 +329,24 @@ async def third_response_answer(update, context):
             "name": name,
             "answer": answer
         })
+        reply_keyboard = [['/posts', '/events', '/about', '/answers'],
+                          ['/site', '/start', '/close', '/stop']]
+
+        markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=False)
         if not response:
-            await update.message.reply_text('Тут происходят пространственные аномалии')
+            await update.message.reply_text('Тут происходят пространственные аномалии', reply_markup=markup)
         for key in response:
             if key == 'success':
-                await update.message.reply_text('Вопрос успешно отправлен, будут еще пишите, не стесняйтесь')
+                await update.message.reply_text('Вопрос успешно отправлен, будут еще пишите, не стесняйтесь',
+                                                reply_markup=markup)
                 return ConversationHandler.END
 
             elif key == 'error':
-                await update.message.reply_text('Простите какие-то неполадки с сервером, попробуйте позже')
+                await update.message.reply_text('Простите какие-то неполадки с сервером, попробуйте позже',
+                                                reply_markup=markup)
                 return ConversationHandler.END
             else:
-                await update.message.reply_text('Тут происходят пространственные аномалии')
+                await update.message.reply_text('Тут происходят пространственные аномалии', reply_markup=markup)
                 return ConversationHandler.END
 
     elif update.message.text.lower() == 'почта':
@@ -301,27 +378,40 @@ async def fourth_response_answer(update, context):
         "name": name,
         "answer": answer
     })
+    reply_keyboard = [['/posts', '/events', '/about', '/answers'],
+                      ['/site', '/start', '/close', '/stop']]
+
+    markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=False)
+
     for key in response:
         if key == 'success':
-            await update.message.reply_text('Вопрос успешно отправлен, будут еще пишите, не стесняйтесь')
+            await update.message.reply_text('Вопрос успешно отправлен, будут еще пишите, не стесняйтесь',
+                                            reply_markup=markup)
             return ConversationHandler.END
 
         elif key == 'error':
-            await update.message.reply_text('Простите какие-то неполадки с сервером, попробуйте позже')
+            await update.message.reply_text('Простите какие-то неполадки с сервером, попробуйте позже',
+                                            reply_markup=markup)
             return ConversationHandler.END
         else:
-            await update.message.reply_text('Тут происходят пространственные аномалии')
+            await update.message.reply_text('Тут происходят пространственные аномалии', reply_markup=markup)
             return ConversationHandler.END
 
 
 async def stop(update, context):
-    await update.message.reply_text(f"Хорошо, {context.user_data['name']}, диалог окончен")
+    db_sess = db_session.create_session()
+    metric = db_sess.query(Metrics).first()
+    info = metric.stop
+    metric = db_sess.query(Metrics).filter(Metrics.id == 1).first()
+    metric.stop = info + 1
+    db_sess.commit()
+    reply_keyboard = [['/posts', '/events', '/about', '/answers'],
+                      ['/site', '/start', '/close', '/stop']]
+
+    markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=False)
+    await update.message.reply_text(f"Хорошо, {context.user_data['name']}, диалог окончен", reply_markup=markup)
     return ConversationHandler.END
 
-
-async def stop1(update, context):
-    await update.message.reply_text(f"Хорошо, {context.user_data['name']}, диалог окончен")
-    return ConversationHandler.END
 
 async def get_response(url, params):
     logger.info(f"getting {url}")
