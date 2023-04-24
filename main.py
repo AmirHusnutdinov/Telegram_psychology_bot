@@ -48,6 +48,7 @@ def main():
     application.add_handler(CommandHandler("about", about))
     application.add_handler(CommandHandler("posts", posts))
     application.add_handler(CommandHandler("events", events))
+    application.add_handler(CommandHandler("frequent_questions", frequent_questions))
 
     conv_handler1 = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
@@ -96,6 +97,18 @@ async def events(update, _):
             await update.message.reply_text(i)
 
 
+async def frequent_questions(update, _):
+    await update.message.reply_text(f'1)Можете ли вы загипнотизировать меня, чтобы я забыл домашнее задание по'
+                                    f' математике?\n--Извините, я не могу загипнотизировать вас, чтобы вы забыли'
+                                    f' математику. Но я могу помочь вам выработать лучшее отношение к этому.\n\n'
+                                    f'2)Нормально ли разговаривать с собой в зеркале?\n--Абсолютно! Совершенно'
+                                    f' нормально разговаривать с собой в зеркале. Просто убедитесь, что вы не спорите'
+                                    f' сами с собой слишком много.\n\n3)Можете ли вы загипнотизировать меня, чтобы я'
+                                    f' стал супергероем?\n--Извините, я не могу загипнотизировать вас, чтобы вы стали'
+                                    f' супергероем. Но я могу помочь вам развить уверенность в себе, чтобы стать героем'
+                                    f' в своей жизни.')
+
+
 async def dialog(update, _):
     phrase = []
 
@@ -107,7 +120,10 @@ async def dialog(update, _):
     for word_hello in hello:
         if word_hello in phrase:
             await update.message.reply_text(f'{answer_for_hello[random.randrange(0, 11)]}')
-            break
+            return
+
+    await update.message.reply_text(f'Простите, но на это мне нечего ответить кроме как...')
+    await update.message.reply_text({update.message.text})
 
 
 async def start(update, context):
@@ -153,7 +169,10 @@ async def first_response_start(update, context):
         return '2_start'
 
     else:
-        await update.message.reply_text('Еще разок "да" или "нет"', reply_markup=markup)
+        list_of_repeat = ['Еще разок', 'Вам стоит ответить или', 'И все же выберите', 'Один из вариантов пожалуйста',
+                          'Или']
+        await update.message.reply_text(f'{random.randrange(0, len(list_of_repeat))} "да" или "нет".',
+                                        reply_markup=markup)
         return '1_start'
 
 
@@ -213,7 +232,8 @@ async def help_(update, _):
     await update.message.reply_text(
         "Доступные команды:\n\n/start - Обновление бота\n/close - Закрытие клавиатуры\n/stop - Прерывание диалога\n\n"
         "/answer - Задать вопрос эксперту\n/posts - Получить пост из блога\n/events - Получение ближайших событий\n"
-        "/about - Получение информации о нас\n/site - Получение ссылки наш на сайт\n\n/help - Получение всех команд")
+        "/about - Получение информации о нас\n/site - Получение ссылки наш на сайт\n/frequent_questions - Получение"
+        " часто задаваемых вопросов\n\n/help - Получение всех команд")
 
 
 async def close_keyboard(update, _):
