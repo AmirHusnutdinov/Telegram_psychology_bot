@@ -1,5 +1,5 @@
 # Mindease бот телеграм
-### Telegram_psychology_bot — это бот сайта Mindease, который предоставляет людям поддержку и рекомендации по своему психическому здоровьем. 
+### Telegram psychology bot — это бот сайта Mindease, который предоставляет людям поддержку и рекомендации по своему психическому здоровьем. 
 
 [![License: MIT](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0) [![Python: 3](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/)
 
