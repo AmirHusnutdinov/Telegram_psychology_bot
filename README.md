@@ -19,5 +19,5 @@ python3 main.py
 ```
 
 ## Авторы
-* #### Github - [@ilyas13z](https://github.com/ilyas13z)
 * #### Github - [@AmirHusnutdinov](https://github.com/AmirHusnutdinov)
+* #### Github - [@ilyas13z](https://github.com/ilyas13z)
